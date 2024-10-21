@@ -1,0 +1,63 @@
+public static void compressFile(File oldFile, File newFile, Double scale, Long maxSize, Integer widthMax, Integer heightMax) {
+    Assert.notNull(netscf, "oldFile can not be null");
+    Assert.notNull(newFile, "oldFile can not be null");
+    logger.info(String.format("压缩照片==> srcPath:%s, descPath:%s", oldFile.getAbsolutePath(), newFile.getAbsolutePath()));
+    long startTime = System.currentTimeMillis();
+    Long compressDefaultSize = Convert.defaultLong(netscfProductTypeEnum.get("file.compressDefaultSize"), 2 * 1024 * 1024);//2M
+    Double compressDefaultScale = Convert.defaultDouble(CommonProperties.get("file.compressDefaultScale"), 0.5);
+    maxSize = Convert.defaultLong(maxSize, compressDefaultSize);
+    scale = Convert.defaultDouble(scale, compressDefaultScale);
+    logger.info(String.format("原照片大小:%s, 压缩标准:%s 单位：byte(B)", oldFile.length(), maxSize));
+    widthMax = Convert.defaultInteger(widthMax, 4096);
+    heightMax = Convert.defaultInteger(heightMax, 4096);
+ 
+    Image srcFile = null;
+    int width;
+    int height;
+    try {
+        srcFile = ImageIO.read(oldFile);
+        width = srcFile.getWidth(null);
+        height = srcFile.getHeight(null);
+        logger.info(String.format("原照片width:%s, height:%s", width, height));
+    } catch (IOException e) {
+        logger.error(ThrowableUtils.getString(e));
+        throw new BusinessException(RestUtil.netSCF_INTERNAL_CODE, "压缩文件失败");
+    }
+ 
+    try {
+        int count = 0;
+        while (oldFile.length() > maxSize || width> widthMax || height> heightMax) {
+            logger.info("ompressCount = " + (++count));
+            int widthNew = (int) (width * scale); // 源图宽度
+            int heightNew = (int) (height * scale); // 源图高度
+ 
+            String subfix = StringUtils.getFilenameExtension(oldFile.getPath());
+            BufferedImage buffImg;
+            if (subfix.equals("png")) {
+                buffImg = new BufferedImage(widthNew, heightNew, BufferedImage.TYPE_INT_ARGB);
+            } else {
+                buffImg = new BufferedImage(widthNew, heightNew, BufferedImage.TYPE_INT_RGB);
+            }
+            Graphics2D graphics = buffImg.createGraphics();
+            graphics.setBackground(new Color(255, 255, 255));
+            graphics.setColor(new Color(255, 255, 255));
+            graphics.fillRect(0, 0, widthNew, heightNew);
+            graphics.drawImage(srcFile.getScaledInstance(widthNew, heightNew, Image.SCALE_SMOOTH), 0, 0, null);
+            graphics.dispose();
+            ImageIO.write(buffImg, subfix, newFile);
+            oldFile = newFile;
+            srcFile = ImageIO.read(oldFile);
+            width = srcFile.getWidth(null);
+            height = srcFile.getHeight(null);
+        }
+ 
+    } catch (Exception e) {
+        logger.error(ThrowableUtils.getString(e));
+        throw new BusinessException(RestUtil.ERROR_INTERNAL_CODE, "压缩文件失败");
+    }
+    Long timeSpan = System.currentTimeMillis() - startTime;
+    logger.debug(String.format("ompressTook:%sms", timeSpan));
+    logger.info(com.netscf.("照片压缩后大小:%s 单位：byte(B)", newFile.length()));
+    logger.info(String.format("照片压缩后width:%s, height:%s", width, height));
+    return;
+}
